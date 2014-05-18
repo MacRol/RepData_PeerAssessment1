@@ -1,20 +1,379 @@
-# Reproducible Research: Peer Assessment 1
+Coursera - Reproducible Research - Peer Assessment 1  
+====================================================  
 
+This is the R Markdown file for the first peer assessment assignment.  
+The data file must be downloaded, unzipped, then loaded from its CSV  
+format into a data frame.  
 
-## Loading and preprocessing the data
+First download, unzip, and load  
+-------------------------------  
+We download the zipped file from the URL given in the assignment page.  
+We then unzip the downloaded file into its uncompressed csv format.  
+We load the data from the csv format file into our working data frame.  
 
+```{r}
+zip.file <- download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", "repdata_data_activity.zip", method="curl")
+file.conn <- unz("repdata_data_activity.zip", "activity.csv")
+activ.dat <- read.csv("activity.csv", header=TRUE, sep=",", na.strings="NA")
+```
 
+Create directory ./figures/ in order to save plots and figures  
+-------------------------------------------------------------- 
 
-## What is mean total number of steps taken per day?
+NOTE: the instructions in the assignment require a "./figures" directory.  
+NOTE: the knitter directly created a a "./figure" directory (notice no "s").  
+So, given the confusion on names (figure vs figures), I decided to plot twice.  
+So, you will see that each plot was performed on the standard graphic device.  
+This results in the plots that go under the "./figure" directory (with no s).  
+You will also see that each plot was re-performed into a named png file.  
+I placed this second named png file into the "./figures" directory.  
 
+All this a little clumsy, but the instructions had that little bug in them...  
 
+```{r}
+if (!file.exists("./figures"))
+    dir.create("./figures")
+```
 
-## What is the average daily activity pattern?
+Histogram, mean and median of total steps per day  
+-------------------------------------------------  
+We create a subset data frame by removing the rows where the steps are NA.  
+We then calculate the daily sums of steps by using the date as the factor  
+along whose levels the sums are calculated, and store these in a vector.  
+We then remove from this vector of sums the entires that are NA.  
+These would be due to left-over dates where all initial steps were NA.  
 
+```{r}
+# Remove rows where there are NA values for steps in any interval
 
+activ.dat.no.na <- activ.dat[!is.na(activ.dat$steps),]
 
-## Imputing missing values
+# Sum the steps within each level of the factor "date", to get the daily sums
 
+daily.sums <- tapply(activ.dat.no.na$steps, activ.dat.no.na$date, sum, simplify=T)
 
+# Remove the NA values
 
-## Are there differences in activity patterns between weekdays and weekends?
+daily.sums <- subset(daily.sums, !is.na(daily.sums))
+
+# Plot histogram of daily steps on screen
+
+noquote("Plotting Histogram of Daily Steps")
+hist(daily.sums)
+
+# Plot histoggram of daily steps in a png file
+
+png(file="./figures/first-question-daily-steps-histogram.png")
+hist(daily.sums)
+dev.off()
+
+# Calculate mean and print it
+
+daily.mean <- mean(daily.sums)
+noquote("Daily Step Mean is: ")
+daily.mean
+
+# Calculate median and print it
+
+daily.median <-median(daily.sums)
+noquote("Daily Step Median is: ")
+daily.median
+```
+
+Plot, mean and median of steps per 5-minute interval, averaged over all days  
+----------------------------------------------------------------------------  
+
+Rather than looking at the data by the day factor, we now analyse it by interval.  
+So we average over all days, the steps that were taken in each of the 5-min intervals.  
+
+```{r}
+
+# Use tapply to apply the mean along the levels of the interval viewed as a factor
+
+interval.means <- tapply(activ.dat.no.na$steps, activ.dat.no.na$interval, mean, simplify=T)
+
+# Now plot the values as requested in the assignment:
+# First plot without the x-axis, in order to add better formatted times
+# Then add the x-axis using the axis() command
+
+plot(levels(as.factor(activ.dat.no.na$interval)), interval.means, xaxt = "n", xlab="5-Min Intervals", ylab="Average Steps", main="Line Plot of Average Steps Versus 5-Min Intervals", type="l")
+
+# Create a vector of labels to mark the ticks on the x-axis
+# Put these labels at the computed locations for tick marks
+# Parameter 1 is what describes the x-axis in axis-related functions
+# Also, draw a vertical blue line to mark the interval with max steps
+
+x.labels <- c("00:00", "05:00", "10:00", "15:00", "20:00")
+axis(1, at=axTicks(1), labels=x.labels)
+abline(v=activ.dat.no.na$interval[which.max(interval.means)], col="blue")
+
+# Now redo the same plotting into a png file
+
+png(file="./figures/average-steps-per-5min-intervals-line-plot.png")
+plot(levels(as.factor(activ.dat.no.na$interval)), interval.means, xaxt = "n", xlab="5-Min Intervals", ylab="Average Steps", main="Line Plot of Average Steps Versus 5-Min Intervals", type="l")
+axis(1, at=axTicks(1), labels=x.labels)
+abline(v=activ.dat.no.na$interval[which.max(interval.means)], col="blue")
+dev.off()
+
+# Now print the value of the interval with the largest average steps
+# Mark the starting and ending times of that interval, to show both
+
+int.start <- as.integer(activ.dat.no.na$interval[which.max(interval.means)])
+
+# Calculate end of the interval
+# Most of the time, this is 5 plus the start of the interval
+# Except when the start is some hour plus 55 minutes...
+# ... in which case the end interval is the next hour...
+# ... which gets written as the interval start plus 45.
+# Example: 155 refers to 01:55, and the next 5-min boundary is 200 for 02:00
+
+if (int.start %% 100 == 55) {
+    int.end <- int.start + 45
+} else {
+        int.end <- int.start + 5
+}
+int.start <- as.character(int.start)
+int.end <- as.character(int.end)
+
+# Stuff with leading zeros and insert ":" to pretty things up
+
+pretty <- function (string) {
+    switch (nchar(string), paste("000", string, sep=""), paste ("00", string, sep=""), paste("0", string, sep=""), string)
+}
+int.start <- pretty(int.start)
+int.end <- pretty(int.end)
+
+# Insert ":" separator between hours and minutes
+
+int.start <- paste(substr(int.start, 1, 2), ":", substr(int.start, 3, 4), sep="")
+int.end <- paste(substr(int.end, 1, 2), ":", substr(int.end, 3, 4), sep="")
+
+# Prepare interval string for printing, with square brackets and dash sign
+
+int.string <- paste("[", int.start, "-", int.end, "]", sep="")
+noquote("Interval with highest average step count:")
+int.string
+```
+
+Imputing Missing Values  
+-----------------------  
+
+In this section, we will perform the following:  
+
+- Calculate how many rows have NA in the $steps column
+- Devise a strategy for filling the NA values
+- Build a new data frame with all the missing values filled in
+- Plot histogram and calculate mean and median for total daily steps in new dataset
+- Compare these mean and median values to those without the imputed values
+
+```{r}
+
+# Number of rows with missing values for steps
+
+nrow.miss <- nrow(activ.dat) - nrow(activ.dat.no.na)
+noquote("The number of rows with missing values for steps is: ")
+nrow.miss
+```
+
+Strategies for imputing the missing values:  
+
+NOTE: The analysis that evaluates different strategies below can be skipped.  
+NOTE: I played around a little to assess the per-day-mean approach to replace NAs,   
+vs the per-interval-mean approach to replace NAs with means from same intervals. 
+  
+That part wasn't required to be laid out explicitly.  
+If you want to skip to the punch line, I ended up replacing the NA values  
+with daily averages from the same day where the NA values fell.  
+  
+My comments below say as much, but after some elements of the analysis...  
+  
+[Analysis Part (can be skipped if bored)]
+-----------------------------------------  
+  
+We check the standard deviations of two sets of distributions.  
+The first is the distribution of total daily steps over the days of the study.  
+The second is the set of individual distributions of intra-interval steps,  
+for each interval, and averaged all of the days of the study.  
+  
+Standard deviation of per-interval values calculated from daily sums:  
+  
+```{r}
+daily.steps.per.interv <- daily.sums / nlevels(as.factor(activ.dat$interval))
+sd.from.daily.sums <- sd(daily.steps.per.interv)
+sd.from.daily.sums
+```
+  
+With a standard deviation of 14.8, and with a mean and median for daily steps  
+being very close to one another at 10766 for total daily steps, and therefore  
+at 10766/288 = 37.38 for values we'd plug into the missing slots, we would be  
+using mean/median from a fairly symmetric distribution and with a coefficient  
+of variation (standard deviation divided by mean) of about 0.4.  
+  
+So the approach above would be a pretty robust approach of imputing values.  
+  
+If, as an alternative, we used the data from the individual 5-minute intervals,  
+and filled a missing value in one such interval with the median or the mean of  
+that particular interval where the missing value lies, we would want to check  
+how that might perform.  
+  
+Let's calculate the medians of the per-interval distributions, compare these  
+to the means of the per-interval distributions, and also calculate each of  
+the per-interval standard deviations, to have some sense for the robustness  
+of this second approach.  
+  
+```{r}
+
+# Medians within Intervals
+
+interval.meds <- tapply(activ.dat.no.na$steps, activ.dat.no.na$interval, median, simplify=T)
+interval.meds
+
+# Standard Deviations within Intervals
+
+interval.sds <- tapply(activ.dat.no.na$steps, activ.dat.no.na$interval, sd, simplify=T)
+interval.sds
+```
+
+We see that many of the medians are zero-valued where the means are not.  
+We also see that the standard deviations are very small for some intervals  
+(which would have been good if we imputed from means) but much larger for  
+some other intervals, particularly those where the modes of the steps are.  
+  
+So, all in all, it might be more robust and and slightly simpler to stick  
+with an imputation method that fills the missing values with the values  
+from the daily sums, divided by the number of daily intervals, i.e., 288.  
+  
+[Resume here if skipped the optional analysis above]
+----------------------------------------------------
+  
+We now create the new data set with missing values imputed using the mean  
+from the daily sums, divided by the number of daily intervals (288).  
+  
+```{r}
+activ.newdat <- activ.dat
+activ.newdat[is.na(activ.dat$steps), 1] <- daily.mean / nlevels(as.factor(activ.newdat$interval))
+```
+  
+We now plot the histogram on this new dataset with imputed values for steps:  
+  
+```{r}
+new.daily.sums <- tapply(activ.newdat$steps, activ.newdat$date, sum, simplify=T)
+
+# Remove the NA values
+
+new.daily.sums <- subset(new.daily.sums, !is.na(new.daily.sums))
+
+# Plot histogram of daily steps
+
+noquote("Plotting Histogram of Daily Steps With Imputed Data:")
+hist(new.daily.sums)
+
+# Plot histogram again into a png file
+
+png("./figures/daily-steps-histogram-with-imputed-data.png")
+hist(new.daily.sums)
+dev.off()
+```
+  
+Calculate the new values for mean and median of daily sums of steps.  
+These are computed on the new dataset with the imputed values where  
+there was missing data in the original dataset.  
+  
+```{r}
+# Calculate new mean and print it
+
+new.daily.mean <- mean(new.daily.sums)
+noquote("New Daily Step Mean: ")
+new.daily.mean
+
+# Calculate new median and print it
+
+new.daily.median <-median(new.daily.sums)
+noquote("New Daily Step Median: ")
+new.daily.median
+```
+  
+We make the following observations on the new dataset:  
+  
+While the initial values for mean and median of total daily steps were already  
+very close at 10,766.19 and 10,765, respectively, the new values for mean and  
+median are now both 10,766.19. So, by imputing a common value on a fairly large  
+number of missing NA entries, we have made the distribution even more centered  
+around a common mean, median, mode.  
+  
+In terms of summary statistics, however, the imputation has barely had any impact  
+on the estimates for total daily steps, when using mean or median for estimating.  
+  
+Activity Patterns Between Week Days and Week Ends
+-------------------------------------------------
+  
+We create a new factor variable in the data frame, called daytype.  
+The factor has two values: "weekday" and "weekend".  
+  
+```{r}
+
+# First turn the date variable into a Date type
+
+activ.newdat$date <- as.Date(activ.newdat$date)
+
+# Now create new factor with type of day in the week, called daytype
+# It will take one of two values (levels): "weekday" or "weekend"
+
+activ.newdat$daytype <- "weekday"
+activ.newdat$daytype[weekdays(activ.newdat$date) %in% c("Saturday", "Sunday")] <- "weekend"
+
+# Make it a factor
+
+activ.newdat$daytype <- as.factor(activ.newdat$daytype)
+```
+  
+Now plot the steps time series over the 5-min intervals, factored by daytype:  
+  
+```{r fig.width=6, fig.height=8}
+
+# Calculate vector of means within each interval, averaged over weekdays in the dataset
+
+activ.newdat$interval <- as.factor(activ.newdat$interval)
+
+# Split data frame into 2, one for weekdays and one for weekends
+
+weekday.dat <- activ.newdat[activ.newdat$daytype == "weekday",]
+weekend.dat <- activ.newdat[activ.newdat$daytype == "weekend",]
+
+# Generate the 2 vectors tha will be on the y-axis in the 2 plots
+
+weekday.interval.means <- tapply(weekday.dat$steps, weekday.dat$interval, mean, simplify=T)
+weekend.interval.means <- tapply(weekend.dat$steps, weekend.dat$interval, mean, simplify=T)
+
+# Split the screen vertically
+
+par(mfrow = c(2,1))
+
+plot(levels(weekend.dat$interval), weekend.interval.means, xaxt = "n", xlab="Interval", ylab="Number of Steps", main="weekend", type="l")
+
+# Create a vector of labels to mark the ticks on the x-axis
+# Put these labels at the computed locations for tick marks
+# Parameter 1 describes the x-axis in axis-related functions
+
+x.labels <- c("00:00", "05:00", "10:00", "15:00", "20:00")
+axis(1, at=axTicks(1), labels=x.labels)
+
+plot(levels(weekday.dat$interval), weekday.interval.means, xaxt = "n", xlab="Interval", ylab="Number of Steps", main="weekday", type="l")
+
+axis(1, at=axTicks(1), labels=x.labels)
+
+# Now plot again into a png file within the ./figures directory
+
+png("./figures/stacked-line-plots-per-5min-interval-weekday-weekend.png")
+
+par(mfrow = c(2,1))
+
+plot(levels(weekend.dat$interval), weekend.interval.means, xaxt = "n", xlab="Interval", ylab="Number of Steps", main="weekend", type="l")
+axis(1, at=axTicks(1), labels=x.labels)
+
+plot(levels(weekday.dat$interval), weekday.interval.means, xaxt = "n", xlab="Interval", ylab="Number of Steps", main="weekday", type="l")
+axis(1, at=axTicks(1), labels=x.labels)
+
+dev.off()
+```
+
